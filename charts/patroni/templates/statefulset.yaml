@@ -1,0 +1,189 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "patroni.fullname" . }}
+  labels: {{ include "patroni.labels" . | nindent 4 }}
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels: {{ include "patroni.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "patroni.fullname" . }}
+  template:
+    metadata:
+      labels: {{ include "patroni.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.podAntiAffinity }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels: {{ include "patroni.selectorLabels" . | nindent 18 }}
+              topologyKey: "kubernetes.io/hostname"
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "patroni.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgresql
+          {{- with .Values.securityContext }}
+          securityContext: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}/{{ .Values.image.name | default .Chart.Name }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: APP_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: app-db-name
+                  name: {{ include "patroni.fullname" . }}
+            - name: APP_USER
+              valueFrom:
+                secretKeyRef:
+                  key: app-db-username
+                  name: {{ include "patroni.fullname" . }}
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: app-db-password
+                  name: {{ include "patroni.fullname" . }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.podIP
+            - name: PATRONI_KUBERNETES_LABELS
+              value: {{ include "patroni.selectorLabels" . | fromYaml | toJson | squote }}
+            - name: PATRONI_KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: PATRONI_SUPERUSER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: superuser-username
+                  name: {{ include "patroni.fullname" . }}
+            - name: PATRONI_SUPERUSER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: superuser-password
+                  name: {{ include "patroni.fullname" . }}
+            - name: PATRONI_REPLICATION_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: replication-username
+                  name: {{ include "patroni.fullname" . }}
+            - name: PATRONI_REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: replication-password
+                  name: {{ include "patroni.fullname" . }}
+            - name: PATRONI_LOG_LEVEL
+              value: WARNING
+            - name: PATRONI_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: PATRONI_POSTGRESQL_DATA_DIR
+              value: "{{ .Values.persistentVolume.mountPath }}/pgroot/data"
+            - name: PATRONI_POSTGRESQL_PGPASS
+              value: "/tmp/pgpass"
+            - name: PATRONI_POSTGRESQL_LISTEN
+              value: 0.0.0.0:5432
+            - name: PATRONI_RESTAPI_LISTEN
+              value: 0.0.0.0:8008
+            - name: PATRONI_SCOPE
+              value: {{ .Release.Name }}
+            - name: POSTGRESQL_MAX_CONNECTIONS
+              value: "500"
+            - name: POSTGRESQL_MAX_PREPARED_TRANSACTIONS
+              value: "500"
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /usr/bin/env
+                  - bash
+                  - -c
+                  - |
+                    # switch leader pod if the current pod is the leader
+                    if curl --fail http://localhost:8008/read-write; then
+                      patronictl switchover --force
+                    fi
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - /usr/bin/env
+                - bash
+                - -c
+                - |
+                  set -Eeuo pipefail && curl -s localhost:8008/liveness | jq -e ". | select(.state == \"running\")"
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+              protocol: TCP
+            - containerPort: 8008
+              protocol: TCP
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - /usr/bin/env
+                - bash
+                - -c
+                - |
+                  set -Eeuo pipefail && df "${PATRONI_POSTGRESQL_DATA_DIR:-{{ .Values.persistentVolume.mountPath }}}" --output=pcent | tail -n 1 | awk '{if ($1+0 > 90) exit 1; else exit 0;}' && pg_isready -q && curl -s localhost:8008/readiness | jq -e ". | select(.state == \"running\")"
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- end }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          terminationMessagePath: "/dev/termination-log"
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: {{ .Values.persistentVolume.mountPath }}
+              name: postgresql
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: postgresql
+          {{- if .Values.persistentVolume.enabled }}
+          persistentVolumeClaim:
+            claimName: postgresql
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+  updateStrategy:
+    type: RollingUpdate
+  {{- if .Values.persistentVolume.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        annotations:
+          volume.beta.kubernetes.io/storage-class: {{ .Values.persistentVolume.storageClass }}
+          {{- with .Values.persistentVolume.annotations }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+        labels: {{ include "patroni.selectorLabels" . | nindent 10 }}
+        name: postgresql
+      spec:
+        accessModes: {{ toYaml .Values.persistentVolume.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.persistentVolume.size }}
+        storageClassName: {{ .Values.persistentVolume.storageClass }}
+  {{- end }}
