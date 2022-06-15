@@ -42,7 +42,7 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/component: database
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/part-of: {{ include "patroni.fullname" . }}
+app.kubernetes.io/part-of: {{ .Release.Name }}
 app.openshift.io/runtime: postgresql
 {{- end }}
 
