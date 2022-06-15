@@ -29,7 +29,7 @@ SECURITY.md                - Security Policy and Reporting
 ```yaml
 dependencies:
 - name: patroni
-    version: 0.0.1
+    version: 0.0.2
     repository: https://bcgov.github.io/nr-patroni-chart
     # by default, the object created will be named <your-app>-patroni. You can use an alias to override the -patroni suffix
     alias: postgres
