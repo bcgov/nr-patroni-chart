@@ -1,6 +1,6 @@
 {{- $secretName := print (include "patroni.fullname" .) }}
-{{- if .Values.externalCreds }}
-{{- $secretName = .Values.externalCreds }}
+{{- if .Values.secretOverride }}
+{{- $secretName = .Values.secretOverride }}
 {{- end }}
 
 ---
