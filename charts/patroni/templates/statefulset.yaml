@@ -157,6 +157,8 @@ spec:
             failureThreshold: 3
           {{- end }}
           resources: {{ toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: true
           terminationMessagePath: "/dev/termination-log"
           terminationMessagePolicy: File
           volumeMounts:
