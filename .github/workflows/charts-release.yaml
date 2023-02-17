@@ -18,14 +18,14 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config user.name "rstens"
-          git config user.email "rstens@users.noreply.github.com"
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
       - name: Install Helm
         uses: azure/setup-helm@v3
         with:
            version: 'latest' # default is latest (stable)
-           token: ${{ secrets.PAT }} # only needed if version is 'latest'
+           token: ${{ secrets.GITHUB_TOKEN }} # only needed if version is 'latest'
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.5.0
