@@ -11,9 +11,8 @@ image:
   name: patroni-postgres
   # Overrides the image tag whose default is the chart appVersion.
   tag: ~
+imagePullSecret: artifacts-pull-artifact-main-xhrklr
 
-imagePullSecrets: 
-  - name: artifacts-pull-artifact-main-xhrklr
 nameOverride: ~
 fullnameOverride: ~
 
