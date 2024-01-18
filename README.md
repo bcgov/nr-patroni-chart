@@ -32,7 +32,7 @@ dependencies:
     version: 0.0.4
     repository: https://bcgov.github.io/nr-patroni-chart
     # by default, the object created will be named <your-app>-patroni. You can use an alias to override the -patroni suffix
-    alias: postgres
+    # Example "alias: postgres" would have "postgres" as the suffix instead.
 ```
 
 2. Update your application (don't forget to update your helm dependencies with `helm dep up`)
@@ -76,8 +76,8 @@ This chart creates two services, allowing to access the leader (read/write conne
 
 ## Documentation
 
-* [Security Reporting](SECURITY.md)
-* [Patroni Postgres Container](https://github.com/bcgov/patroni-postgres-container)
+- [Security Reporting](SECURITY.md)
+- [Patroni Postgres Container](https://github.com/bcgov/patroni-postgres-container)
 
 ## Getting Help or Reporting an Issue
 
