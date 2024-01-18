@@ -31,7 +31,8 @@ dependencies:
 - name: patroni
     version: 0.0.4
     repository: https://bcgov.github.io/nr-patroni-chart
-    # by default, the object created will be named <your-app>-patroni. You can use an alias to override the -patroni suffix "alias: postgres"
+    # by default, the object created will be named <your-app>-patroni. You can use an alias to override the -patroni suffix
+    # Example "alias: postgres" would have "postgres" as the suffix instead.
 ```
 
 2. Update your application (don't forget to update your helm dependencies with `helm dep up`)
